@@ -18,6 +18,10 @@ prepare_artifact() {
             prepare_python_artifact
             ;;
 
+        rust)
+            prepare_rust_artifact "$2"
+            ;;
+
         *)
             warn "Unsupported artifact type '$type'"
             return 1
@@ -75,6 +79,24 @@ copy_go_binary() {
     cp "$file" "artifact/$binary"
 }
 
+prepare_rust_artifact() {
+
+    require_command cp
+
+    local binary="$1"
+
+    info "Preparing Rust artifact"
+
+    local src="target/release/$binary"
+
+    if [[ ! -f "$src" ]]; then
+        warn "Rust binary '$binary' not found at $src"
+        return 1
+    fi
+
+    cp "$src" "artifact/$binary"
+}
+
 artifact_exists() {
 
     local type="$1"
@@ -88,6 +110,10 @@ artifact_exists() {
 
         python)
             [[ -d artifact/dist ]]
+            ;;
+
+        rust)
+            [[ -f "artifact/$binary" ]]
             ;;
 
         *)
@@ -110,6 +136,10 @@ artifact_path() {
 
         python)
             echo "artifact/dist"
+            ;;
+
+        rust)
+            echo "artifact/$binary"
             ;;
 
         *)
