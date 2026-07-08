@@ -145,3 +145,117 @@ teardown() {
     run prepare_artifact ruby ""
     [ "$status" -ne 0 ]
 }
+
+# ---------------------------------------------------------------------------
+# artifact_path — node
+# ---------------------------------------------------------------------------
+
+@test "artifact_path: node returns artifact/dist" {
+    result=$(artifact_path node "")
+    [ "$result" = "artifact/dist" ]
+}
+
+# ---------------------------------------------------------------------------
+# artifact_exists — node
+# ---------------------------------------------------------------------------
+
+@test "artifact_exists: node — true when dist present" {
+    mkdir -p artifact/dist
+    run artifact_exists node ""
+    [ "$status" -eq 0 ]
+}
+
+@test "artifact_exists: node — false when dist missing" {
+    mkdir -p artifact
+    run artifact_exists node ""
+    [ "$status" -ne 0 ]
+}
+
+# ---------------------------------------------------------------------------
+# prepare_node_artifact
+# ---------------------------------------------------------------------------
+
+@test "prepare_node_artifact: copies dist/ to artifact/dist" {
+    mkdir -p dist artifact
+    touch dist/index.js
+
+    run prepare_node_artifact
+    [ "$status" -eq 0 ]
+    [ -d "artifact/dist" ]
+    [ -f "artifact/dist/index.js" ]
+}
+
+@test "prepare_node_artifact: fails when dist/ does not exist" {
+    run prepare_node_artifact
+    [ "$status" -ne 0 ]
+}
+
+# ---------------------------------------------------------------------------
+# prepare_artifact — node dispatcher
+# ---------------------------------------------------------------------------
+
+@test "prepare_artifact: dispatches to node path" {
+    mkdir -p dist
+    touch dist/index.js
+
+    run prepare_artifact node ""
+    [ "$status" -eq 0 ]
+}
+
+# ---------------------------------------------------------------------------
+# artifact_path — rust
+# ---------------------------------------------------------------------------
+
+@test "artifact_path: rust returns artifact/<binary>" {
+    result=$(artifact_path rust myservice)
+    [ "$result" = "artifact/myservice" ]
+}
+
+# ---------------------------------------------------------------------------
+# artifact_exists — rust
+# ---------------------------------------------------------------------------
+
+@test "artifact_exists: rust — true when binary present" {
+    mkdir -p artifact
+    touch artifact/myservice
+    run artifact_exists rust myservice
+    [ "$status" -eq 0 ]
+}
+
+@test "artifact_exists: rust — false when binary missing" {
+    mkdir -p artifact
+    run artifact_exists rust myservice
+    [ "$status" -ne 0 ]
+}
+
+# ---------------------------------------------------------------------------
+# prepare_rust_artifact
+# ---------------------------------------------------------------------------
+
+@test "prepare_rust_artifact: copies binary from target/release/ to artifact/" {
+    mkdir -p target/release artifact
+    touch target/release/myservice
+
+    run prepare_rust_artifact myservice
+    [ "$status" -eq 0 ]
+    [ -f "artifact/myservice" ]
+}
+
+@test "prepare_rust_artifact: fails when binary not found in target/release/" {
+    mkdir -p target/release artifact
+
+    run prepare_rust_artifact myservice
+    [ "$status" -ne 0 ]
+}
+
+# ---------------------------------------------------------------------------
+# prepare_artifact — rust dispatcher
+# ---------------------------------------------------------------------------
+
+@test "prepare_artifact: dispatches to rust path" {
+    mkdir -p target/release artifact
+    touch target/release/myservice
+
+    run prepare_artifact rust myservice
+    [ "$status" -eq 0 ]
+}
