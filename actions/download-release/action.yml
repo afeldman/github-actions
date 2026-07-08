@@ -1,0 +1,23 @@
+name: "Download Release Asset"
+description: "Downloads an artifact from an existing GitHub Release."
+
+inputs:
+  tag:
+    description: "Release tag"
+    required: true
+
+  pattern:
+    description: "Asset name or glob pattern"
+    required: true
+
+runs:
+  using: composite
+
+  steps:
+    - shell: bash
+      run: ${{ github.action_path }}/download-release.sh
+      env:
+        GH_TOKEN: ${{ github.token }}
+        GITHUB_REPOSITORY: ${{ github.repository }}
+        TAG: ${{ inputs.tag }}
+        PATTERN: ${{ inputs.pattern }}

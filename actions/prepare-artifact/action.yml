@@ -1,0 +1,33 @@
+name: "Prepare Artifact"
+description: "Prepare a build artifact for upload."
+
+inputs:
+  artifact_type:
+    description: "Artifact type (go|python)"
+    required: false
+    default: "go"
+
+  binary_name:
+    description: "Binary name"
+    required: false
+    default: ""
+
+outputs:
+  exists:
+    description: "Whether the artifact exists"
+    value: ${{ steps.prepare.outputs.exists }}
+
+  path:
+    description: "Path to the artifact"
+    value: ${{ steps.prepare.outputs.path }}
+
+runs:
+  using: composite
+
+  steps:
+    - id: prepare
+      shell: bash
+      run: ${{ github.action_path }}/prepare-artifact.sh
+      env:
+        ARTIFACT_TYPE: ${{ inputs.artifact_type }}
+        BINARY_NAME: ${{ inputs.binary_name }}

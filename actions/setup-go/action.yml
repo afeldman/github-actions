@@ -1,0 +1,39 @@
+name: "Setup Go"
+description: "Setup Go and configure private Go modules."
+
+inputs:
+  go_version:
+    description: "Go version"
+    required: false
+    default: ""
+
+  go_version_file:
+    description: "Path to go.mod file"
+    required: false
+    default: "go.mod"
+
+  go_private:
+    description: "GOPRIVATE value"
+    required: false
+    default: "github.com/enercity"
+
+runs:
+  using: composite
+
+  steps:
+    - name: Setup Go
+      if: ${{ inputs.go_version != '' }}
+      uses: actions/setup-go@v5
+      with:
+        go-version: ${{ inputs.go_version }}
+
+    - name: Setup Go from go.mod
+      if: ${{ inputs.go_version == '' }}
+      uses: actions/setup-go@v5
+      with:
+        go-version-file: ${{ inputs.go_version_file }}
+
+    - name: Configure GOPRIVATE
+      shell: bash
+      run: |
+        go env -w GOPRIVATE="${{ inputs.go_private }}"

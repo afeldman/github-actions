@@ -26,7 +26,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GITHUB_REF: ${{ github.ref }}
           GITHUB_REPOSITORY: ${{ github.repository }}
-        run: .github/scripts/check-release.sh
+        run: afeldman/github-actions/actions/check-release@main
 
   build:
     name: Build
@@ -60,7 +60,7 @@ jobs:
       - name: Build release artifacts
         env:
           VERSION: ${{ needs.check-release.outputs.version }}
-        run: .github/scripts/build.sh
+        run: 
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4

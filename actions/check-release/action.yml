@@ -1,0 +1,23 @@
+name: "Check Release"
+description: "Checks whether a GitHub Release exists and contains assets."
+
+outputs:
+  tag:
+    description: "Release tag"
+    value: ${{ steps.check.outputs.tag }}
+
+  release_exists:
+    description: "Whether a release with assets exists"
+    value: ${{ steps.check.outputs.release_exists }}
+
+runs:
+  using: "composite"
+
+  steps:
+    - id: check
+      shell: bash
+      run: ${{ github.action_path }}/check-release.sh
+      env:
+        GH_TOKEN: ${{ github.token }}
+        GITHUB_REF: ${{ github.ref }}
+        GITHUB_REPOSITORY: ${{ github.repository }}
