@@ -1,0 +1,38 @@
+name: "Setup Rust"
+description: "Setup Rust toolchain with caching."
+
+inputs:
+  rust_version:
+    description: "Rust toolchain version"
+    required: false
+    default: "stable"
+
+  target:
+    description: "Target triple"
+    required: false
+    default: "x86_64-unknown-linux-gnu"
+
+  components:
+    description: "Components to install (comma separated)"
+    required: false
+    default: "clippy,rustfmt"
+
+runs:
+  using: composite
+
+  steps:
+    - name: "Install Rust toolchain"
+      uses: dtolnay/rust-toolchain@master
+      with:
+        toolchain: ${{ inputs.rust_version }}
+        targets: ${{ inputs.target }}
+        components: ${{ inputs.components }}
+
+    - name: "Cache Cargo registry"
+      uses: actions/cache@v4
+      with:
+        key: cargo-${{ runner.os }}-${{ hashFiles('**/Cargo.lock') }}
+        path: |
+          ~/.cargo/registry
+          ~/.cargo/git
+          target

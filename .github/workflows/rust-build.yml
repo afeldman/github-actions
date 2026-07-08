@@ -1,0 +1,128 @@
+name: "Rust Build Artifact"
+
+on:
+  workflow_call:
+    secrets:
+      git_token:
+        required: false
+
+    inputs:
+      binary_name:
+        description: "Name of the binary"
+        required: true
+        type: string
+
+      rust_version:
+        description: "Rust toolchain version"
+        required: false
+        default: "stable"
+        type: string
+
+      target:
+        description: "Target triple"
+        required: false
+        default: "x86_64-unknown-linux-gnu"
+        type: string
+
+      cargo_extra_args:
+        description: "Extra args for cargo build"
+        required: false
+        default: ""
+        type: string
+
+      enable:
+        description: "Enable Rust build"
+        required: false
+        default: true
+        type: boolean
+
+      only_on_tag:
+        description: "Run only on git tags"
+        required: false
+        default: false
+        type: boolean
+
+jobs:
+  rust-build:
+    name: "Build with Cargo"
+    runs-on: ubuntu-latest
+
+    if: ${{ inputs.enable && ( !inputs.only_on_tag || startsWith(github.ref, 'refs/tags/') ) }}
+
+    outputs:
+      artifact_created: ${{ steps.check.outputs.exists }}
+
+    steps:
+      ##############################################################################
+      # Checkout
+      ##############################################################################
+      - name: "Checkout Code"
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          fetch-tags: true
+          token: ${{ secrets.git_token || github.token }}
+
+      ##############################################################################
+      # Rust Setup
+      ##############################################################################
+      - name: "Setup Rust"
+        uses: afeldman/github-actions/actions/setup-rust@feature/rust
+        with:
+          rust_version: ${{ inputs.rust_version }}
+          target: ${{ inputs.target }}
+
+      ##############################################################################
+      # Check / download existing release
+      ##############################################################################
+      - name: "Check if GitHub Release exists"
+        id: release_check
+        uses: afeldman/github-actions/actions/check-release@main
+
+      - name: "Download binary from existing release"
+        if: steps.release_check.outputs.release_exists == 'true'
+        uses: afeldman/github-actions/actions/download-release@main
+        with:
+          tag: ${{ steps.release_check.outputs.tag }}
+          pattern: ${{ inputs.binary_name }}
+
+      ##############################################################################
+      # Cargo Build
+      ##############################################################################
+      - name: "Build with cargo"
+        if: steps.release_check.outputs.release_exists != 'true'
+        run: cargo build --release ${{ inputs.cargo_extra_args }}
+
+      ##############################################################################
+      # Prepare artifact
+      ##############################################################################
+      - name: "Prepare artifact"
+        id: prepare
+        if: steps.release_check.outputs.release_exists != 'true'
+        uses: afeldman/github-actions/actions/prepare-artifact@feature/rust
+        with:
+          artifact_type: rust
+          binary_name: ${{ inputs.binary_name }}
+
+      ##############################################################################
+      # Verify artifact
+      ##############################################################################
+      - name: "Check artifact exists"
+        id: check
+        run: |
+          if [ -f "artifact/${{ inputs.binary_name }}" ]; then
+            echo "exists=true" >> "${GITHUB_OUTPUT}"
+          else
+            echo "exists=false" >> "${GITHUB_OUTPUT}"
+          fi
+
+      ##############################################################################
+      # Upload artifact
+      ##############################################################################
+      - name: "Upload artifact"
+        if: steps.check.outputs.exists == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: artifact-${{ github.sha }}-build
+          path: artifact/${{ inputs.binary_name }}
+          retention-days: 7
