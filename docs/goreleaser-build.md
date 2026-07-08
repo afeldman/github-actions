@@ -8,11 +8,9 @@ an existing binary from a GitHub Release if one already exists for the current t
 ```yaml
 jobs:
   build:
-    uses: enercity/github-actions-datalynx/.github/workflows/goreleaser-build.yml@main
+    uses: afeldman/github-actions/.github/workflows/go-build.yml@main
     with:
       binary_name: myservice
-    secrets:
-      git_token: ${{ secrets.READ_ACCESS_TO_ALL_ENERCITY_REPOS }}
 ```
 
 ## Flow
@@ -36,13 +34,6 @@ tag build?
 | `enable` | | `true` | Set `false` to skip the whole job |
 | `only_on_tag` | | `false` | `true` = run only on `refs/tags/*` |
 | `goreleaser_extra_args` | | `` | Extra args passed to `goreleaser build` (e.g. `--snapshot`) |
-
-## Secrets
-
-| Secret | Description |
-|--------|-------------|
-| `ssh_private_key` | SSH key for private Go modules |
-| `git_token` | GitHub token for private modules (HTTPS fallback) |
 
 ## Outputs
 

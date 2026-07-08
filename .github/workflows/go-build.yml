@@ -1,0 +1,214 @@
+name: "GoReleaser Build Artifact"
+
+on:
+  workflow_call:
+    secrets:
+      git_token:
+        required: false
+
+    inputs:
+      go_version:
+        description: "Go version"
+        required: false
+        default: ""
+        type: string
+
+      go_version_file:
+        description: "Path to go.mod file"
+        required: false
+        type: string
+        default: "go.mod"
+
+      binary_name:
+        description: "Name of the binary"
+        required: true
+        type: string
+
+      build_path:
+        description: "Path to Go module"
+        required: false
+        default: "."
+        type: string
+
+      enable:
+        description: "Enable goreleaser build"
+        required: false
+        default: true
+        type: boolean
+
+      only_on_tag:
+        description: "Run only on git tags"
+        required: false
+        default: false
+        type: boolean
+
+      artifact_type:
+        description: "Artifact type (go|python)"
+        required: false
+        default: "go"
+        type: string
+
+      goreleaser_extra_args:
+        description: "Extra args for goreleaser build (e.g. --snapshot)"
+        required: false
+        default: ""
+        type: string
+
+jobs:
+  goreleaser-build:
+    name: "Build with GoReleaser"
+    runs-on: ubuntu-latest
+
+    if: ${{ inputs.enable && ( !inputs.only_on_tag || startsWith(github.ref, 'refs/tags/') ) }}
+
+    outputs:
+      artifact_created: ${{ steps.check.outputs.exists }}
+
+    steps:
+      ##############################################################################
+      # Checkout
+      ##############################################################################
+      - name: "Checkout Code"
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          fetch-tags: true
+          token: ${{ secrets.git_token || github.token }}
+
+      - name: "Fetch tags"
+        run: git fetch --tags --force
+
+      ##############################################################################
+      # HTTPS for private Go modules
+      ##############################################################################
+      - name: "Configure HTTPS for private modules"
+        run: |
+          git config --global url."https://${GIT_TOKEN}:@github.com/".insteadOf "https://github.com/"
+        env:
+          GIT_TOKEN: ${{ secrets.git_token || github.token }}
+
+      ##############################################################################
+      # Go Setup
+      ##############################################################################
+      - name: "Setup Go"
+        if: inputs.artifact_type != 'python'
+        uses: afeldman/github-actions/actions/setup-go@main
+        with:
+          go_version: ${{ inputs.go_version }}
+          go_version_file: ${{ inputs.go_version_file }}
+
+      ##############################################################################
+      # Validate tag
+      ##############################################################################
+      - name: "Check if tag exists and matches commit"
+        id: tagcheck
+        run: |
+          TAG="${GITHUB_REF#refs/tags/}"
+
+          if [ -z "$TAG" ]; then
+            echo "no_tag=true" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+
+          TAG_COMMIT=$(git rev-list -n 1 "$TAG" 2>/dev/null || echo "")
+
+          if [ -z "$TAG_COMMIT" ]; then
+            echo "tag_exists=false" >> $GITHUB_OUTPUT
+          elif [ "$TAG_COMMIT" = "$GITHUB_SHA" ]; then
+            echo "tag_exists=true" >> $GITHUB_OUTPUT
+            echo "tag_matches=true" >> $GITHUB_OUTPUT
+          else
+            echo "tag_exists=true" >> $GITHUB_OUTPUT
+            echo "tag_matches=false" >> $GITHUB_OUTPUT
+          fi
+
+      ##############################################################################
+      # Check / download existing release
+      ##############################################################################
+      - name: "Check if GitHub Release exists"
+        id: release_check
+        uses: afeldman/github-actions/actions/check-release@main
+
+      - name: "Show release assets"
+        if: steps.release_check.outputs.release_exists == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ steps.release_check.outputs.tag }}
+        run: |
+          gh release view "$TAG" --repo "$GITHUB_REPOSITORY"
+
+      - name: "Download binary from existing release"
+        if: steps.release_check.outputs.release_exists == 'true'
+        uses: afeldman/github-actions/actions/download-release@main
+        with:
+          tag: ${{ steps.release_check.outputs.tag }}
+          pattern: ${{ inputs.binary_name }}
+
+      ##############################################################################
+      # GoReleaser Build
+      ##############################################################################
+      - name: "Fail if tag exists but does not match commit"
+        if: steps.release_check.outputs.release_exists != 'true' && steps.tagcheck.outputs.tag_exists == 'true' && steps.tagcheck.outputs.tag_matches != 'true'
+        run: |
+          echo "::error::Tag ${{ steps.release_check.outputs.tag }} existiert bereits, zeigt aber auf einen anderen Commit. Bitte neuen Tag setzen."
+          exit 1
+
+      - name: "Run GoReleaser build"
+        if: steps.release_check.outputs.release_exists != 'true' && steps.tagcheck.outputs.tag_matches != 'false'
+        uses: goreleaser/goreleaser-action@f06c13b6b1a9625abc9e6e439d9c05a8f2190e94 # v7
+        with:
+          version: "~> v2"
+          args: build --clean ${{ inputs.goreleaser_extra_args }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: "List dist contents"
+        if: steps.release_check.outputs.release_exists != 'true'
+        run: ls -R dist
+
+      ##############################################################################
+      # Prepare artifact (build path only — download path skips this)
+      ##############################################################################
+      - name: "Prepare artifact"
+        id: prepare
+        if: steps.release_check.outputs.release_exists != 'true'
+        uses: afeldman/github-actions/actions/prepare-artifact@main
+        with:
+          artifact_type: ${{ inputs.artifact_type }}
+          binary_name: ${{ inputs.binary_name }}
+
+      ##############################################################################
+      # Verify artifact (runs for both build and download paths)
+      ##############################################################################
+      - name: "Check artifact exists"
+        id: check
+        run: |
+          case "${{ inputs.artifact_type }}" in
+            python)
+              if [ -d "artifact/dist" ]; then
+                echo "exists=true" >> "${GITHUB_OUTPUT}"
+                echo "path=artifact/dist" >> "${GITHUB_OUTPUT}"
+              else
+                echo "exists=false" >> "${GITHUB_OUTPUT}"
+              fi
+              ;;
+            go|*)
+              if [ -f "artifact/${{ inputs.binary_name }}" ]; then
+                echo "exists=true" >> "${GITHUB_OUTPUT}"
+                echo "path=artifact/${{ inputs.binary_name }}" >> "${GITHUB_OUTPUT}"
+              else
+                echo "exists=false" >> "${GITHUB_OUTPUT}"
+              fi
+              ;;
+          esac
+
+      ##############################################################################
+      # Upload artifact
+      ##############################################################################
+      - name: "Upload artifact"
+        if: steps.check.outputs.exists == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: artifact-${{ github.sha }}-build
+          path: ${{ steps.check.outputs.path }}
+          retention-days: 7

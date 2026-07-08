@@ -1,0 +1,11 @@
+name: Reusable Test
+
+on:
+  workflow_call:
+
+jobs:
+  hello:
+    runs-on: ubuntu-latest
+
+    steps:
+      - run: echo "Hello"
