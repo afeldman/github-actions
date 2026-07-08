@@ -18,6 +18,10 @@ prepare_artifact() {
             prepare_python_artifact
             ;;
 
+        node)
+            prepare_node_artifact
+            ;;
+
         *)
             warn "Unsupported artifact type '$type'"
             return 1
@@ -49,6 +53,20 @@ prepare_python_artifact() {
     require_command cp
 
     info "Preparing Python artifact"
+
+    [[ -d dist ]] || {
+        warn "dist directory not found."
+        return 1
+    }
+
+    cp -R dist artifact/dist
+}
+
+prepare_node_artifact() {
+
+    require_command cp
+
+    info "Preparing Node artifact"
 
     [[ -d dist ]] || {
         warn "dist directory not found."
@@ -90,6 +108,10 @@ artifact_exists() {
             [[ -d artifact/dist ]]
             ;;
 
+        node)
+            [[ -d artifact/dist ]]
+            ;;
+
         *)
             warn "Unsupported artifact type '$type'"
             return 1
@@ -109,6 +131,10 @@ artifact_path() {
             ;;
 
         python)
+            echo "artifact/dist"
+            ;;
+
+        node)
             echo "artifact/dist"
             ;;
 

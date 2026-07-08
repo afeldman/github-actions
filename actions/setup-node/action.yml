@@ -1,0 +1,43 @@
+name: "Setup Node.js"
+description: "Setup Node.js and install dependencies."
+
+inputs:
+  node_version:
+    description: "Node.js version"
+    required: false
+    default: ""
+
+  node_version_file:
+    description: "Path to .node-version file (fallback .nvmrc)"
+    required: false
+    default: ".node-version"
+
+  package_manager:
+    description: "Package manager (yarn|bun|npm)"
+    required: false
+    default: "yarn"
+
+runs:
+  using: composite
+
+  steps:
+    - name: Setup Node.js
+      if: ${{ inputs.node_version != '' }}
+      uses: actions/setup-node@v4
+      with:
+        node-version: ${{ inputs.node_version }}
+
+    - name: Setup Node.js from version file
+      if: ${{ inputs.node_version == '' }}
+      uses: actions/setup-node@v4
+      with:
+        node-version-file: ${{ inputs.node_version_file }}
+
+    - name: Install bun
+      if: ${{ inputs.package_manager == 'bun' }}
+      shell: bash
+      run: npm install -g bun
+
+    - name: Install dependencies
+      shell: bash
+      run: ${{ inputs.package_manager }} install
