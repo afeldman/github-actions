@@ -1,0 +1,124 @@
+name: "Python Build Artifact"
+
+on:
+  workflow_call:
+    secrets:
+      git_token:
+        required: false
+
+    inputs:
+      python_version:
+        description: "Python version"
+        required: false
+        default: ""
+        type: string
+
+      package_name:
+        description: "Name of the Python package (for artifact naming)"
+        required: true
+        type: string
+
+      enable:
+        description: "Enable build"
+        required: false
+        default: true
+        type: boolean
+
+      only_on_tag:
+        description: "Run only on git tags"
+        required: false
+        default: false
+        type: boolean
+
+    outputs:
+      artifact_created:
+        description: "Whether artifact was created"
+        value: ${{ jobs.python-build.outputs.artifact_created }}
+
+jobs:
+  python-build:
+    name: "Build with uv"
+    runs-on: ubuntu-latest
+
+    if: ${{ inputs.enable && ( !inputs.only_on_tag || startsWith(github.ref, 'refs/tags/') ) }}
+
+    outputs:
+      artifact_created: ${{ steps.check.outputs.exists }}
+
+    steps:
+      ##############################################################################
+      # Checkout
+      ##############################################################################
+      - name: "Checkout Code"
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          fetch-tags: true
+          token: ${{ secrets.git_token || github.token }}
+
+      - name: "Fetch tags"
+        run: git fetch --tags --force
+
+      ##############################################################################
+      # Python Setup
+      ##############################################################################
+      - name: "Setup Python"
+        uses: afeldman/github-actions/actions/setup-python@feature/python
+        with:
+          python_version: ${{ inputs.python_version }}
+
+      ##############################################################################
+      # Check / download existing release
+      ##############################################################################
+      - name: "Check if GitHub Release exists"
+        id: release_check
+        uses: afeldman/github-actions/actions/check-release@main
+
+      - name: "Download from existing release"
+        if: steps.release_check.outputs.release_exists == 'true'
+        uses: afeldman/github-actions/actions/download-release@main
+        with:
+          tag: ${{ steps.release_check.outputs.tag }}
+          pattern: ${{ inputs.package_name }}
+
+      ##############################################################################
+      # Build
+      ##############################################################################
+      - name: "Run uv build"
+        if: steps.release_check.outputs.release_exists != 'true'
+        run: uv build
+
+      ##############################################################################
+      # Prepare artifact
+      ##############################################################################
+      - name: "Prepare artifact"
+        id: prepare
+        if: steps.release_check.outputs.release_exists != 'true'
+        uses: afeldman/github-actions/actions/prepare-artifact@feature/python
+        with:
+          artifact_type: python
+          binary_name: ${{ inputs.package_name }}
+
+      ##############################################################################
+      # Verify artifact
+      ##############################################################################
+      - name: "Check artifact exists"
+        id: check
+        run: |
+          if [ -d "artifact/dist" ]; then
+            echo "exists=true" >> "${GITHUB_OUTPUT}"
+            echo "path=artifact/dist" >> "${GITHUB_OUTPUT}"
+          else
+            echo "exists=false" >> "${GITHUB_OUTPUT}"
+          fi
+
+      ##############################################################################
+      # Upload artifact
+      ##############################################################################
+      - name: "Upload artifact"
+        if: steps.check.outputs.exists == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: artifact-${{ github.sha }}-build
+          path: ${{ steps.check.outputs.path }}
+          retention-days: 7

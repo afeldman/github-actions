@@ -1,0 +1,30 @@
+name: "Setup Python"
+description: "Setup Python via uv and optionally pin Python version."
+
+inputs:
+  python_version:
+    description: "Python version"
+    required: false
+    default: ""
+
+  python_version_file:
+    description: "Path to pyproject.toml file"
+    required: false
+    default: "pyproject.toml"
+
+runs:
+  using: composite
+
+  steps:
+    - name: Setup uv
+      uses: astral-sh/setup-uv@v6
+
+    - name: Pin Python version
+      if: ${{ inputs.python_version != '' }}
+      shell: bash
+      run: uv python pin ${{ inputs.python_version }}
+
+    - name: Pin Python version from file
+      if: ${{ inputs.python_version == '' }}
+      shell: bash
+      run: uv python pin --from ${{ inputs.python_version_file }}
