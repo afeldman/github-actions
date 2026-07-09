@@ -1,0 +1,47 @@
+name: Patch Helm Values
+
+description: Updates image.repository, image.tag and image.pullPolicy in a Helm values.yaml.
+
+inputs:
+  values_file:
+    description: Path to values.yaml
+    required: true
+
+  image_repository:
+    description: Docker image repository
+    required: false
+    default: ""
+
+  image_tag:
+    description: Docker image tag
+    required: false
+    default: ""
+
+  image_pull_policy:
+    description: Image pull policy
+    required: false
+    default: IfNotPresent
+
+  host:
+    description: Registry host
+    required: false
+    default: ghcr.io
+
+  organization:
+    description: Repository namespace inside the registry
+    required: false
+    default: ""
+
+runs:
+  using: composite
+
+  steps:
+    - shell: bash
+      run: ${{ github.action_path }}/patch.sh
+      env:
+        VALUES_FILE: ${{ inputs.values_file }}
+        INPUT_IMAGE_REPOSITORY: ${{ inputs.image_repository }}
+        INPUT_IMAGE_TAG: ${{ inputs.image_tag }}
+        INPUT_IMAGE_PULL_POLICY: ${{ inputs.image_pull_policy }}
+        INPUT_HOST: ${{ inputs.host }}
+        INPUT_ORGANIZATION: ${{ inputs.organization }}
